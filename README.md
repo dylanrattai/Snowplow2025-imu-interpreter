@@ -1,53 +1,43 @@
-# Snowplow2024
-2023-2024 Hy-flex Code for ION Autonomous Snowplow
+# Autonomous Snowplow Software Team
 
-## Getting Started
+## Introduction
 
-### Setup your ssh keys
-Follow these instructions: https://help.github.com/articles/connecting-to-github-with-ssh/
+The autonomous snowplow team focuses on designing a robotic snowplow for competition. Quick facts about the team:
 
-### Clone the repo
-There are certain scripts that assume that you have the Snowplow2023 repo installed in your home directory. It is recommended you don't try to clone the repo anywhere else.
-```
-cd ~
-git clone git@github.com:BisonRobotics/Snowplow2023.git
-```
-## Development Conventions
+- Our robot's name is Hy-flex
+- We compete every January at [Dunwoody College of Technology in Minneapolis](https://mail.autosnowplow.com/welcome.html)
+- The snowplow project was founded in 2015
 
-### Style Guidelines
+The team is divided into groups of different technical expertise:
 
-#### ROS
-See: http://wiki.ros.org/ROS/Patterns/Conventions
-And: http://wiki.ros.org/StyleGuide
+- Electrical
+- Mechanical
+- Software
 
-#### C++
-See: http://wiki.ros.org/CppStyleGuide
-And: https://google.github.io/styleguide/cppguide.html
+## Role of the Software Team
 
-#### Python
-See: http://wiki.ros.org/PyStyleGuide
+The software team instructs the robot on how to move. The robot does not take human input during competition so this is hard to do well. Instead, the robot takes in its surroundings with sensors and decides its next movements. This involves using path planning algorithms and other strategies to clear a snow surface within the competition's rules.
 
-### Unit Testing
-See: http://wiki.ros.org/Quality/Tutorials/UnitTesting
+As a part of the software team you will be essentially creating the **brains** of the **robot**.
 
-## Misc Info
+## Technologies Used
 
-### Motor Controllers
-[Roboteq HDC2460](https://www.roboteq.com/products/products-brushed-dc-motor-controllers/hdc2450-259-detail) \
-[Roboteq User Manual](https://www.roboteq.com/docman-list/motor-controllers-documents-and-files/documentation/user-manual/272-roboteq-controllers-user-manual-v21/file) \
+The software team uses Python for all programming. It is completely alright if you are unfamiliar with Python, there are tutorials online and you'll learn along the way. Python is a fairly simple language that I believe can be mastered by everyone.
 
-### Onboard computer login information
+Here is a tutorial I recommend: [Python Tutorial](https://www.codecademy.com/catalog/language/python)
 
-name: \
-server: \
-user: \
-pass: \
-address:
+With Python, we use a framework called ROS 2. ROS 2 stands for Robot Operating System 2. It is a development kit for creating robotic applications. ROS 2 will seem extremely foreign the first time you'll code with it but as the year goes on I believe everyone can master it the same as Python.
 
-Common hosts [ref](https://docs.google.com/document/d/1SIL_rD9zDHXBfXHYZ7J_V_AXUjoopJnW3r_VlywnoGs/edit?usp=sharing) :
-access point: `192.168.1.10`
-Computer: `192.168.1.1`
+Here is an intro overview of ROS 2 I recommend: [ROS 2 Introduction](https://youtu.be/7TVWlADXwRw?si=22iAkbewI1WpEhDJ)
 
-### Super Secret Info
-Riley can't tell me what to do. Which is why I am in charge of the code and got him to buy me all the fancy stuff. -Nate
-I did all the research and all the fancy stuff was my idea - Riley
+The specific version of ROS 2 we use is called ROS 2 Iron Irwini.
+
+## Getting Started - First Meeting
+
+1. First make sure you are on the Bison Robotic's Discord server and are on the snowplow channel
+2. Create a GitHub account
+3. Install VirtualBox or VMWare and Ubuntu 22.04
+   - [Tutorial for VirtualBox and Ubuntu 22.04 Install](https://medium.com/@maheshdeshmukh22/how-to-install-ubuntu-22-04-lts-on-virtualbox-in-windows-11-6c259ce8ef60)
+
+We'll instruct you through the rest at later meetings. 
+   
