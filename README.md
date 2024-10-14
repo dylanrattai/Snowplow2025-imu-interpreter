@@ -1,4 +1,4 @@
-# Snowplow2024
+# Snowplow2025
 2023-2024 Hy-flex Code for ION Autonomous Snowplow
 
 ## Getting Started
@@ -7,10 +7,10 @@
 Follow these instructions: https://help.github.com/articles/connecting-to-github-with-ssh/
 
 ### Clone the repo
-There are certain scripts that assume that you have the Snowplow2023 repo installed in your home directory. It is recommended you don't try to clone the repo anywhere else.
+There are certain scripts that assume that you have the Snowplow2025 repo installed in your home directory. It is recommended you don't try to clone the repo anywhere else.
 ```
 cd ~
-git clone git@github.com:BisonRobotics/Snowplow2023.git
+git clone git@github.com:BisonRobotics/Snowplow2025.git
 ```
 ## Development Conventions
 
