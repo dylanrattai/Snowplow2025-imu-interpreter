@@ -2,9 +2,8 @@ import math
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
-from tf_transformations import quaternion_from_euler
 
-class IMU_Interpreter(Node):
+class IMUInterpreter(Node):
     def __init__(self):
         super().__init__('imu_interpreter')
 
@@ -12,92 +11,157 @@ class IMU_Interpreter(Node):
         self.subscription = self.create_subscription(Imu, 'imu', self.interpret_imu_information, 10)
 
         # Create IMU interpreter publisher
-        self.publisher_= self.create_publisher(Imu, 'interpreted_imu', 10)
-        
-        # Init previous values
-        self.previous_gyro_angle_x = 0.0
-        self.previous_gyro_angle_y = 0.0
-        self.previous_gyro_angle_z = 0.0
+        self.publisher_ = self.create_publisher(Imu, 'interpreted_imu', 10)
+
+        self.Rx_est = 0.0
+        self.Ry_est = 0.0
+        self.Rz_est = 0.0
+
+        # init time
         self.previous_time = self.get_clock().now()
 
-        self.initialized = False # So I can init with the actual gyro values
+        # weight for w gyro
+        self.w_gyro = 10.0 #probably needs to be tuned
 
-    # What runs when we get info from the IMU publisher
+        # init with real imu data not just 0,0,0,0
+        self.initialized = False
+
     def interpret_imu_information(self, msg: Imu):
-        # Initialize with actual gyro values
-        if (not self.initialized):
-            self.previous_gyro_angle_x = msg.orientation.x
-            self.previous_gyro_angle_y = msg.orientation.y
-            self.previous_gyro_angle_z = msg.orientation.z
-            self.previous_time = self.get_clock().now()
-            self.initialized = True
-
-            # Treat first cycle as starting position
+        # get time distance
+        current_time = self.get_clock().now()
+        dt = (current_time - self.previous_time).nanoseconds * 1e-9
+        if dt <= 0.0:
+            # skip if time difference isnt positive
             return
+        self.previous_time = current_time
 
-        # Raw IMU data
-        # Accelerometer
+        # accelerometer, m/s^2
         accel_x = msg.linear_acceleration.x
         accel_y = msg.linear_acceleration.y
         accel_z = msg.linear_acceleration.z
 
-        # Normalize acceleration
+        # gyro, rad/s
+        gyro_x = msg.angular_velocity.x
+        gyro_y = msg.angular_velocity.y
+        gyro_z = msg.angular_velocity.z
+
+        # normalize
         accel_magnitude = math.sqrt(accel_x**2 + accel_y**2 + accel_z**2)
-        if accel_magnitude > 0:
-            accel_x /= accel_magnitude
-            accel_y /= accel_magnitude
-            accel_z /= accel_magnitude
+        if accel_magnitude == 0:
+            self.get_logger().warning('Accelerometer magnitude is zero. Skipping this iteration.')
+            return
 
-        # Angular rate (gyro data)
-        angrate_x = msg.angular_velocity.x
-        angrate_y = msg.angular_velocity.y
-        angrate_z = msg.angular_velocity.z
+        # normalize by gravity
+        Rx_acc = accel_x / accel_magnitude
+        Ry_acc = accel_y / accel_magnitude
+        Rz_acc = accel_z / accel_magnitude
 
-        # Inclination angles (from accelerometer)
-        accel_angle_x = math.atan2(accel_y, math.sqrt(accel_x**2 + accel_z**2))
-        accel_angle_y = math.atan2(-accel_x, math.sqrt(accel_y**2 + accel_z**2))
+        # init with base values
+        if not self.initialized:
+            self.Rx_est = Rx_acc
+            self.Ry_est = Ry_acc
+            self.Rz_est = Rz_acc
+            self.initialized = True
+            return
 
-        # Time difference
-        current_time = self.get_clock().now()
-        dt = (current_time - self.previous_time).nanoseconds * 1e-9
-        self.previous_time = current_time
+        # previous estimate rest
+        Rx_est_prev = self.Rx_est
+        Ry_est_prev = self.Ry_est
+        Rz_est_prev = self.Rz_est
 
-        # Estimate angle by integrating gyro
-        gyro_angle_x = self.previous_gyro_angle_x + angrate_x * dt
-        gyro_angle_y = self.previous_gyro_angle_y + angrate_y * dt
-        gyro_angle_z = self.previous_gyro_angle_z + angrate_z * dt
+        # calculate
+        Axz_prev = math.atan2(Rx_est_prev, Rz_est_prev)
+        Ayz_prev = math.atan2(Ry_est_prev, Rz_est_prev)
 
-        # Apply complementary filter
-        alpha = 0.98  # Weight factor (adjust if needed)
-        filtered_angle_x = alpha * gyro_angle_x + (1 - alpha) * accel_angle_x
-        filtered_angle_y = alpha * gyro_angle_y + (1 - alpha) * accel_angle_y
+        # update angles based off gyro
+        # gyro x corresponds to rotation around x axis affecting ayz (y component)
+        # gyro y corresponds to rotation around y axis affecting axz (x component)
+        Axz = Axz_prev + gyro_y * dt  # Rotation around y axis affects xz plane
+        Ayz = Ayz_prev + gyro_x * dt  # rotation around x axis affects yz plane
 
-        # Quaternion from filtered angles
-        q = quaternion_from_euler(filtered_angle_x, filtered_angle_y, gyro_angle_z)
-        
+        # reconstruct gyro
+        sin_Axz = math.sin(Axz)
+        cos_Axz = math.cos(Axz)
+        tan_Ayz = math.tan(Ayz)
+
+        denominator_x = math.sqrt(1 + (cos_Axz**2) * (tan_Ayz**2))
+        Rx_gyro = sin_Axz / denominator_x
+
+        sin_Ayz = math.sin(Ayz)
+        cos_Ayz = math.cos(Ayz)
+        tan_Axz = math.tan(Axz)
+
+        denominator_y = math.sqrt(1 + (cos_Ayz**2) * (tan_Axz**2))
+        Ry_gyro = sin_Ayz / denominator_y
+
+        # get sign of rz gyro
+        Rz_sign = 1.0 if Rz_est_prev >= 0 else -1.0
+        Rz_gyro_sq = 1.0 - Rx_gyro**2 - Ry_gyro**2
+        if Rz_gyro_sq < 0:
+            # make rz not negative
+            Rz_gyro_sq = max(Rz_gyro_sq, 0.0)
+        Rz_gyro = Rz_sign * math.sqrt(Rz_gyro_sq)
+
+        # normalize
+        Rgyro_magnitude = math.sqrt(Rx_gyro**2 + Ry_gyro**2 + Rz_gyro**2)
+        Rx_gyro /= Rgyro_magnitude
+        Ry_gyro /= Rgyro_magnitude
+        Rz_gyro /= Rgyro_magnitude
+
+        # combine accelerometer and gyro, weight it
+        w_gyro = self.w_gyro
+        Rx_est = (Rx_acc + Rx_gyro * w_gyro) / (1.0 + w_gyro)
+        Ry_est = (Ry_acc + Ry_gyro * w_gyro) / (1.0 + w_gyro)
+        Rz_est = (Rz_acc + Rz_gyro * w_gyro) / (1.0 + w_gyro)
+
+        # normalize
+        Rest_magnitude = math.sqrt(Rx_est**2 + Ry_est**2 + Rz_est**2)
+        Rx_est /= Rest_magnitude
+        Ry_est /= Rest_magnitude
+        Rz_est /= Rest_magnitude
+
+        # update previous
+        self.Rx_est = Rx_est
+        self.Ry_est = Ry_est
+        self.Rz_est = Rz_est
+
+        # convert estimated vector to euler
+        roll = math.atan2(Ry_est, Rz_est)
+        pitch = math.atan2(-Rx_est, math.sqrt(Ry_est**2 + Rz_est**2))
+        yaw = 0.0  # Cannot determine yaw without magnetometer data
+
+        # euler to quaternion
+        cy = math.cos(yaw * 0.5)
+        sy = math.sin(yaw * 0.5)
+        cp = math.cos(pitch * 0.5)
+        sp = math.sin(pitch * 0.5)
+        cr = math.cos(roll * 0.5)
+        sr = math.sin(roll * 0.5)
+
+        q_w = cr * cp * cy + sr * sp * sy
+        q_x = sr * cp * cy - cr * sp * sy
+        q_y = cr * sp * cy + sr * cp * sy
+        q_z = cr * cp * sy - sr * sp * cy
+
+        # Publishing stuff
         interpreted_imu_msg = Imu()
-        interpreted_imu_msg.orientation.x = q[0]
-        interpreted_imu_msg.orientation.y = q[1]
-        interpreted_imu_msg.orientation.z = q[2]
-        interpreted_imu_msg.orientation.w = q[3]
+        interpreted_imu_msg.header.stamp = current_time.to_msg()
+        interpreted_imu_msg.orientation.x = q_x
+        interpreted_imu_msg.orientation.y = q_y
+        interpreted_imu_msg.orientation.z = q_z
+        interpreted_imu_msg.orientation.w = q_w
         interpreted_imu_msg.angular_velocity = msg.angular_velocity
         interpreted_imu_msg.linear_acceleration = msg.linear_acceleration
-        interpreted_imu_msg.header.stamp = current_time.to_msg()
 
-        # Publish interpreted IMU message
+        # Publish
         self.publisher_.publish(interpreted_imu_msg)
 
-        # Update previous gyro angles for next iteration
-        self.previous_gyro_angle_x = gyro_angle_x
-        self.previous_gyro_angle_y = gyro_angle_y
-        self.previous_gyro_angle_z = gyro_angle_z
+    def main(args=None):
+        rclpy.init(args=args)
+        node = IMUInterpreter()
+        rclpy.spin(node)
+        node.destroy_node()
+        rclpy.shutdown()
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = IMU_Interpreter()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
-    
 if __name__ == '__main__':
     main()
